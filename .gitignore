@@ -1,2 +1,5 @@
 context.md
 test.py
+.env
+test_db.py
+venv

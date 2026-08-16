@@ -3,9 +3,9 @@ Feature Registry
 
 - It is the source of truth for every feature in the system
 - It defines a feature once
-- It stores its metadata
+- It stores its metadata    
 - It makes the feature discoverable
-- It lets both training and serving code read the same defination
+- It lets both training and serving code read the same defination  
 """
 
 # Feature Registration API
@@ -32,6 +32,7 @@ class FeatureRecord:
 
 _registry : dict[str, FeatureRecord] = {}
 
+''' The decorator '''
 
 def feature(entity : str, ttl : int = 3600, description : str = "", data_type : str = "float"):
 
