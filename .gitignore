@@ -3,3 +3,4 @@ test.py
 .env
 test_db.py
 venv
+dump.rdb
