@@ -28,6 +28,10 @@ class FeatureRecord:
     description : str = ""
     data_type : str = "float"
 
+    @property
+    def compute_fn(self):
+        return self.fn
+
 ''' In Memory Store '''
 
 _registry : dict[str, FeatureRecord] = {}
@@ -38,12 +42,13 @@ def feature(entity : str, ttl : int = 3600, description : str = "", data_type : 
 
     def wrapper(fn):
         new_feature = FeatureRecord(fn.__name__, entity_type=entity, fn=fn, ttl=ttl, description=description, data_type=data_type)
+        new_feature.compute_fn = fn
         _registry[fn.__name__] = new_feature
         return fn
     return wrapper
 
 def get(name : str) -> FeatureRecord:
-    return _registry[name]
+    return _registry.get(name)
 
 def list_all() -> dict[str, FeatureRecord]:
     return _registry

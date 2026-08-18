@@ -65,30 +65,44 @@ def write_feature(entity_id, feature_name, value, computed_at):
 # Function returning feature value of required params
 
 
-def get_historical_features(entity_id, feature_name, as_of_timestamp):
+def get_historical_features(entity_ids=None, feature_names=None, as_of=None, *, entity_id=None, feature_name=None, as_of_timestamp=None):
+    if as_of is None:
+        as_of = as_of_timestamp
+    if isinstance(entity_ids, str):
+        entity_ids = [entity_ids]
+    if isinstance(feature_names, str):
+        feature_names = [feature_names]
+    if entity_id is not None:
+        entity_ids = [entity_id]
+    if feature_name is not None:
+        feature_names = [feature_name]
+    if entity_ids is None:
+        entity_ids = []
+    if feature_names is None:
+        feature_names = []
 
     session = Session()
-
     try:
-        results = session.execute(
-            text("""
-                                    SELECT value
-                                    FROM feature_store f
-                                    WHERE f.entity_id = :entity_id
-                                    AND f.feature_name = :feature_name
-                                    AND f.computed_at <= :computed_at
-                                    ORDER by computed_at DESC
-                                    LIMIT 1
-                """),
-            {
-                "entity_id": entity_id,
-                "feature_name": feature_name,
-                "computed_at": as_of_timestamp,
-            },
-        )
-        row = results.fetchone()
-        return row[0] if row else None
-    except Exception as e:
-        print(e)
+        result = {entity_id_value: {} for entity_id_value in entity_ids}
+        for entity_id_value in entity_ids:
+            for feature_name_value in feature_names:
+                row = session.execute(
+                    text("""
+                        SELECT value
+                        FROM feature_store f
+                        WHERE f.entity_id = :entity_id
+                        AND f.feature_name = :feature_name
+                        AND f.computed_at <= :computed_at
+                        ORDER by computed_at DESC
+                        LIMIT 1
+                    """),
+                    {
+                        "entity_id": entity_id_value,
+                        "feature_name": feature_name_value,
+                        "computed_at": as_of,
+                    },
+                ).fetchone()
+                result.setdefault(entity_id_value, {})[feature_name_value] = row[0] if row else None
+        return result
     finally:
         session.close()

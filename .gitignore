@@ -4,3 +4,4 @@ test.py
 test_db.py
 venv
 dump.rdb
+__pycache__
