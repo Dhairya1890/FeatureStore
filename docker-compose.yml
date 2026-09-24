@@ -12,9 +12,7 @@ services:
 
   redis:
     image: redis:7
-    environment:
-      REDIS_USERNAME: featurehub
-      REDIS_PASSWORD: featurehub
+    command: redis-server --requirepass featurehub
     ports:
       - "6379:6379"
 

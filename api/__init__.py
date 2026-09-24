@@ -18,11 +18,18 @@ from offline import engine
 from features import feature
 
 
+cors_origins_env = os.getenv("CORS_ORIGINS") or os.getenv("FRONTEND_URL")
 origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:3000",
 ]
+if cors_origins_env:
+    for origin in cors_origins_env.split(","):
+        cleaned = origin.strip()
+        if cleaned and cleaned not in origins:
+            origins.append(cleaned)
+
 
 logger = logging.getLogger(__name__)
 
