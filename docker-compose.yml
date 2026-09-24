@@ -9,7 +9,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    
+
   redis:
     image: redis:7
     environment:
@@ -17,6 +17,32 @@ services:
       REDIS_PASSWORD: featurehub
     ports:
       - "6379:6379"
-  
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: featurehub-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: featurehub-grafana
+    depends_on:
+      - prometheus
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: featurehub
+      GF_SECURITY_ADMIN_PASSWORD: featurehub
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - grafana_data:/var/lib/grafana
+
 volumes:
   postgres_data:
+  grafana_data:
+    name: featurestore_grafana_data_v2

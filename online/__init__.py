@@ -11,6 +11,9 @@ import os
 
 import redis
 from dotenv import load_dotenv
+from time import perf_counter
+
+from monitoring.metrics import ONLINE_READ_DURATION, ONLINE_READS, ONLINE_WRITES
 
 load_dotenv()
 
@@ -39,8 +42,17 @@ def write_feature(entity_type=None, entity_id=None, feature_name=None, value=Non
         raise TypeError("write_feature requires entity_type, entity_id, feature_name, value, and ttl.")
 
     k = f'{entity_type}:{entity_id}:{feature_name}'
-    r.set(k, value, ex=ttl)
-    return True
+    try:
+        r.set(k, value, ex=ttl)
+        ONLINE_WRITES.labels(
+            feature=feature_name, entity_type=entity_type, status='success'
+        ).inc()
+        return True
+    except redis.ConnectionError:
+        ONLINE_WRITES.labels(
+            feature=feature_name, entity_type=entity_type, status='error'
+        ).inc()
+        raise
 
 # The read function that reads the value back
 
@@ -57,11 +69,25 @@ def get_feature(entity_type_or_feature_name, entity_id=None, feature_name=None):
         entity_id_value = entity_id
         key = f'{entity_type}:{entity_id_value}:{feature_name}'
 
+    started_at = perf_counter()
     try:
         result = r.get(key)
         if result is None:
+            ONLINE_READS.labels(
+                feature=feature_name, entity_type=entity_type, status='miss'
+            ).inc()
             return None
+        ONLINE_READS.labels(
+            feature=feature_name, entity_type=entity_type, status='hit'
+        ).inc()
         return float(result)
     except redis.ConnectionError:
+        ONLINE_READS.labels(
+            feature=feature_name, entity_type=entity_type, status='error'
+        ).inc()
         return None
+    finally:
+        ONLINE_READ_DURATION.labels(
+            feature=feature_name, entity_type=entity_type
+        ).observe(perf_counter() - started_at)
     

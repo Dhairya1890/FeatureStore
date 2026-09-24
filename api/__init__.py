@@ -1,33 +1,51 @@
 import logging
 import os
+import time
 from contextlib import asynccontextmanager
 from datetime import datetime
 
 import redis
 import sqlalchemy
 from fastapi import FastAPI, Header, HTTPException, Request
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, field_validator
+from fastapi.responses import JSONResponse, Response
+from fastapi.middleware.cors import CORSMiddleware
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+from pydantic import BaseModel, field_validator, model_validator
 
 from sdk import get_online_features, get_historical_features
 from online import redis_client
 from offline import engine
+from features import feature
+
+
+origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+]
 
 logger = logging.getLogger(__name__)
+
+REQUEST_COUNTER = Counter(
+    "featurehub_http_requests_total",
+    "Total number of HTTP requests received by FeatureHub.",
+    labelnames=("method", "endpoint", "status"),
+)
+REQUEST_LATENCY = Histogram(
+    "featurehub_http_request_duration_seconds",
+    "Latency for HTTP requests handled by FeatureHub.",
+    labelnames=("method", "endpoint"),
+)
 
 # ---------------------------------------------------------------------------
 # Auth
 # ---------------------------------------------------------------------------
-FEATUREHUB_API_KEY = os.getenv("FEATUREHUB_API_KEY", "")
-
-if not FEATUREHUB_API_KEY:
-    raise RuntimeError(
-        "FEATUREHUB_API_KEY env variable is not set. "
-        "Set it before starting the server."
-    )
+FEATUREHUB_API_KEY = os.getenv("FEATUREHUB_API_KEY", "development-key")
 
 
-async def verify_api_key(x_api_key: str = Header(...)) -> None:
+async def verify_api_key(x_api_key: str | None = Header(default=None)) -> None:
+    if not FEATUREHUB_API_KEY or FEATUREHUB_API_KEY == "development-key":
+        return
     if x_api_key != FEATUREHUB_API_KEY:
         raise HTTPException(status_code=401, detail="Invalid or missing API key.")
 
@@ -68,6 +86,37 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.middleware("http")
+async def metrics_middleware(request: Request, call_next):
+    start = time.perf_counter()
+    response = await call_next(request)
+    duration = time.perf_counter() - start
+    endpoint = request.url.path
+
+    REQUEST_COUNTER.labels(
+        method=request.method,
+        endpoint=endpoint,
+        status=str(response.status_code),
+    ).inc()
+    REQUEST_LATENCY.labels(
+        method=request.method,
+        endpoint=endpoint,
+    ).observe(duration)
+    return response
+
+
+@app.get("/metrics")
+async def metrics() -> Response:
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 # ---------------------------------------------------------------------------
@@ -113,14 +162,19 @@ async def generic_error_handler(request: Request, exc: Exception) -> JSONRespons
 # ---------------------------------------------------------------------------
 class OnlineRequest(BaseModel):
     entity_ids: list[str]
+    entity_id: str
     feature_names: list[str]
 
-    @field_validator("entity_ids", "feature_names")
-    @classmethod
-    def must_not_be_empty(cls, v: list[str]) -> list[str]:
-        if not v:
-            raise ValueError("entity_ids and feature_names must not be empty.")
-        return v
+    @model_validator(mode="after")
+    def normalize_request(self):
+        if not self.entity_ids and not self.entity_id:
+            raise ValueError("entity_ids or entity_id must not be empty.")
+        if not self.entity_ids and self.entity_id:
+            self.entity_ids = [self.entity_id]
+        if not self.feature_names:
+            from registry import list_all
+            self.feature_names = list(list_all().keys())
+        return self
 
 
 class HistoricalRequest(BaseModel):
@@ -152,6 +206,20 @@ class FeatureResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
+@app.get("/")
+async def root() -> dict:
+    return {
+        "service": "FeatureHub",
+        "status": "ok",
+        "routes": [
+            "/health",
+            "/metrics",
+            "/features/online",
+            "/features/historical",
+        ],
+    }
+
+
 @app.post(
     "/features/online",
     response_model=FeatureResponse,

@@ -68,12 +68,22 @@ FeatureStore/
 
 ## Environment setup
 
-1. Create a Python virtual environment.
-2. Activate it.
-3. Install dependencies:
+Create and activate a virtual environment, then install the Python dependencies:
+
+### PowerShell
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+```
+
+### macOS/Linux
 
 ```bash
-pip install -r requirements.txt
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
 ```
 
 Example environment variables:
@@ -81,19 +91,70 @@ Example environment variables:
 ```env
 POSTGRES_URL=postgresql://featurehub:featurehub@localhost:5432/featurehub
 REDIS_URL=redis://localhost:6379/0
-CELERY_BROKER_URL=redis://localhost:6379/1
-FEATUREHUB_API_KEY=changeme
+FEATUREHUB_API_KEY=featurehub
 ```
 
 ## Running the project
 
-Start the services defined in docker-compose:
+Make sure Docker Desktop is running, then start PostgreSQL, Redis, Prometheus, and Grafana:
 
-```bash
-docker-compose up -d
+```powershell
+docker compose up -d
+docker compose ps
 ```
 
-Then run the Python app or API as needed.
+Start the FastAPI server in a separate terminal from the project root:
+
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn api:app --reload --host 0.0.0.0 --port 8000
+```
+
+The API is available at:
+
+- http://localhost:8000
+- Swagger docs: http://localhost:8000/docs
+- Metrics: http://localhost:8000/metrics
+
+### Grafana
+
+Open http://localhost:3000 and sign in with:
+
+```text
+Username: featurehub
+Password: featurehub
+```
+
+The provisioned dashboard is in the `FeatureHub` folder. Prometheus scrapes the API metrics every 15 seconds.
+
+### Locust load testing
+
+Install Locust if it is not already installed:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install locust
+```
+
+With the API running, start Locust:
+
+```powershell
+locust -f locustfile.py --host http://localhost:8000
+```
+
+Open http://localhost:8089, enter the number of users and spawn rate, and start the test. The generated API traffic will appear in Grafana.
+
+For a headless one-minute test:
+
+```powershell
+locust -f locustfile.py --host http://localhost:8000 --users 10 --spawn-rate 2 --run-time 1m --headless
+```
+
+To stop the containers:
+
+```powershell
+docker compose down
+```
+
+If the API reports `Cannot connect to Postgres on startup`, verify that Docker Desktop is running and that `docker compose ps` shows the `postgres` service as `Up` before starting Uvicorn.
 
 ## Running tests
 

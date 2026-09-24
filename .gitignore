@@ -5,3 +5,4 @@ test_db.py
 venv
 dump.rdb
 __pycache__
+node_modules

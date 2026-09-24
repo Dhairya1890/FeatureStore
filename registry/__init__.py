@@ -42,7 +42,6 @@ def feature(entity : str, ttl : int = 3600, description : str = "", data_type : 
 
     def wrapper(fn):
         new_feature = FeatureRecord(fn.__name__, entity_type=entity, fn=fn, ttl=ttl, description=description, data_type=data_type)
-        new_feature.compute_fn = fn
         _registry[fn.__name__] = new_feature
         return fn
     return wrapper

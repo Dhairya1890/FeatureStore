@@ -1,11 +1,19 @@
 import logging
 import random
 import os
+from time import perf_counter
 from celery import Celery
 from celery.utils.log import get_task_logger
 
 from registry import get, list_all
 from online import write_feature as write_online
+from monitoring.metrics import (
+    MATERIALIZATION_DURATION,
+    MATERIALIZATION_ENTITIES,
+    MATERIALIZATION_RUNS,
+    MATERIALIZATION_SKIPS,
+    MATERIALIZATION_WRITES,
+)
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -96,6 +104,14 @@ def materialize_feature(self, feature_name: str, entity_ids: list[str]) -> dict:
         )
         return {"feature": feature_name, "written": 0, "skipped": len(entity_ids)}
 
+    entity_type = record.entity_type
+    started_at = perf_counter()
+    MATERIALIZATION_RUNS.labels(
+        feature=feature_name, entity_type=entity_type, status="started"
+    ).inc()
+    MATERIALIZATION_ENTITIES.labels(
+        feature=feature_name, entity_type=entity_type
+    ).inc(len(entity_ids))
     written = 0
     skipped = 0
 
@@ -112,6 +128,11 @@ def materialize_feature(self, feature_name: str, entity_ids: list[str]) -> dict:
                     feature_name, entity_id,
                 )
                 skipped += 1
+                MATERIALIZATION_SKIPS.labels(
+                    feature=feature_name,
+                    entity_type=entity_type,
+                    reason="missing_compute_value",
+                ).inc()
                 continue
 
             write_online(
@@ -122,11 +143,17 @@ def materialize_feature(self, feature_name: str, entity_ids: list[str]) -> dict:
                 ttl=record.ttl,
             )
             written += 1
+            MATERIALIZATION_WRITES.labels(
+                feature=feature_name, entity_type=entity_type
+            ).inc()
 
         logger.info(
             "[FeatureHub] Materialized | feature=%s written=%d skipped=%d",
             feature_name, written, skipped,
         )
+        MATERIALIZATION_RUNS.labels(
+            feature=feature_name, entity_type=entity_type, status="success"
+        ).inc()
         return {"feature": feature_name, "written": written, "skipped": skipped}
 
     except Exception as exc:
@@ -134,6 +161,9 @@ def materialize_feature(self, feature_name: str, entity_ids: list[str]) -> dict:
         delay    = _backoff_delay(attempt)
 
         if self.request.retries < MAX_RETRIES:
+            MATERIALIZATION_RUNS.labels(
+                feature=feature_name, entity_type=entity_type, status="retry"
+            ).inc()
             logger.warning(
                 "[FeatureHub] Transient failure | feature=%s attempt=%d/%d "
                 "retrying in %.1fs | error=%s: %s",
@@ -143,8 +173,15 @@ def materialize_feature(self, feature_name: str, entity_ids: list[str]) -> dict:
             raise self.retry(exc=exc, countdown=delay)
 
         # All retries exhausted
+        MATERIALIZATION_RUNS.labels(
+            feature=feature_name, entity_type=entity_type, status="failure"
+        ).inc()
         _notify_failure(feature_name, exc)
         raise  # re-raise so Celery marks task as FAILURE
+    finally:
+        MATERIALIZATION_DURATION.labels(
+            feature=feature_name, entity_type=entity_type
+        ).observe(perf_counter() - started_at)
 
 
 # ---------------------------------------------------------------------------

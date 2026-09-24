@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from registry import get, list_all
 from offline import get_historical_features as offline_get_historical
 from online import get_feature as online_get_feature
+from monitoring.metrics import ONLINE_FALLBACKS, ONLINE_FALLBACK_MISSES
 
 logger = logging.getLogger(__name__)
 
@@ -47,12 +48,12 @@ def get_online_features(
     Use at inference time.
 
     Args:
-        entity_ids:    Entities to fetch for.
-        feature_names: Features to fetch.
+        entity_ids:    Entities to fetch for. Ex User_Id
+        feature_names: Features to fetch. Ex. txn_24hrs
 
     Returns:
         {entity_id: {feature_name: value}}
-        Missing values that could not be recovered are None.
+        Missing values that could not be recovered(Even ) are None.
     """
     _validate_feature_names(feature_names)
 
@@ -72,6 +73,8 @@ def get_online_features(
 
     # Fallback: offline store as of now
     if fallback_needed:
+        for _, feature_name in fallback_needed:
+            ONLINE_FALLBACKS.labels(feature=feature_name, status="started").inc()
         as_of = datetime.now(timezone.utc)
         logger.warning(
             "[FeatureHub SDK] Online miss — falling back to offline | "
@@ -87,11 +90,19 @@ def get_online_features(
             # rows: {entity_id: {feature_name: value}}
             value = rows.get(entity_id, {}).get(feature_name)
             if value is None:
+                ONLINE_FALLBACKS.labels(
+                    feature=feature_name, status="miss"
+                ).inc()
+                ONLINE_FALLBACK_MISSES.labels(feature=feature_name).inc()
                 logger.error(
                     "[FeatureHub SDK] Fallback miss | "
                     "feature=%s entity=%s — returning None.",
                     feature_name, entity_id,
                 )
+            else:
+                ONLINE_FALLBACKS.labels(
+                    feature=feature_name, status="recovered"
+                ).inc()
             result[entity_id][feature_name] = value
 
     return result

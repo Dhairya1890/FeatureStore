@@ -8,3 +8,5 @@ python-dotenv
 pytest
 httpx
 alembic
+prometheus-client
+dotenv
