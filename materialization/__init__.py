@@ -23,7 +23,15 @@ logger = get_task_logger(__name__)
 # ---------------------------------------------------------------------------
 # Celery app
 # ---------------------------------------------------------------------------
-CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/1")
+raw_broker = (
+    os.getenv("CELERY_BROKER_URL")
+    or os.getenv("CELERY_BROKEN_URL")
+    or "redis://localhost:6379/1"
+).strip().strip('"\'')
+if not raw_broker.startswith(("redis://", "rediss://", "unix://", "amqp://")):
+    if "://" not in raw_broker:
+        raw_broker = f"redis://{raw_broker}"
+CELERY_BROKER_URL = raw_broker
 
 celery_app = Celery(
     "featurehub",

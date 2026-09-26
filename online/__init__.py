@@ -17,7 +17,12 @@ from monitoring.metrics import ONLINE_READ_DURATION, ONLINE_READS, ONLINE_WRITES
 
 load_dotenv()
 
-r = redis.from_url(os.getenv('REDIS_URL', 'redis://localhost:6379/0'))
+raw_redis = os.getenv('REDIS_URL', 'redis://localhost:6379/0').strip().strip('"\'')
+if not raw_redis.startswith(("redis://", "rediss://", "unix://")):
+    if "://" not in raw_redis:
+        raw_redis = f"redis://{raw_redis}"
+
+r = redis.from_url(raw_redis)
 redis_client = r
 
 # Redis command to set a key

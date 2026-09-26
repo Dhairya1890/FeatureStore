@@ -23,7 +23,7 @@ import os
 load_dotenv()
 
 # Connection to SQLAlchemy's connection to the database
-postgres_url = os.getenv("POSTGRES_URL") or os.getenv("DATABASE_URL")
+postgres_url = os.getenv("POSTGRES_URL") or os.getenv("POSTGRESQL_URL") or os.getenv("DATABASE_URL")
 if not postgres_url:
     raise ValueError(
         "POSTGRES_URL environment variable is not set! "
