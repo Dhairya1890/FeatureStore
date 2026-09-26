@@ -1,9 +1,7 @@
 from locust import HttpUser, task, between
 from datetime import datetime, timezone
-from dotenv import load_dotenv
-import os
 
-load_dotenv()
+API_KEY = "featurehub"
 
 class FeatureHubUser(HttpUser):
     wait_time = between(1, 3)
@@ -15,7 +13,7 @@ class FeatureHubUser(HttpUser):
             "entity_ids": ["u1", "u2", "u3"],
             "feature_names": ["user_age", "user_score", "purchase_count"]
         },
-        headers={"x-api-key" : os.getenv("FEATUREHUB_API_KEY")}
+        headers={"x-api-key" : API_KEY}
         )
 
     @task(1)
@@ -25,7 +23,7 @@ class FeatureHubUser(HttpUser):
             "feature_names": ["user_age", "user_score", "purchase_count"],
             "as_of": datetime.now(timezone.utc).isoformat()
         },
-        headers={"x-api-key" : os.getenv("FEATUREHUB_API_KEY")}
+        headers={"x-api-key" : API_KEY}
         )
 
     @task(1)
