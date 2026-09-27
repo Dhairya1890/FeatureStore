@@ -46,7 +46,7 @@ services:
       - "8089:8089"
     volumes:
       - ./locust:/mnt/locust
-    command: -f /mnt/locust/locustfile.py --host=http://api:8000
+    command: -f /mnt/locust/locustfile.py --host=https://featurestore.onrender.com
 
 volumes:
   postgres_data:

@@ -263,6 +263,27 @@ async def historical_features(
     )
     return FeatureResponse(data=data)
 
+@app.get(
+    "/features/registry",
+    summary="List all registered features",
+    status_code=200,
+)
+async def list_features(x_api_key : str = Header(...)):
+    await verify_api_key(x_api_key)
+    from registry import list_all
+    features = list_all()
+    return{
+        "features" : [
+            {
+            "name" : f.name,
+            "entity_type" : f.entity_type,
+            "ttl" : f.ttl,
+            "description" : f.description,
+            "data_type" : f.data_type,
+            }
+            for f in features.values()
+        ]
+    }
 
 # ---------------------------------------------------------------------------
 # Health check (no auth — for load balancers / k8s probes)

@@ -11,7 +11,7 @@ class FeatureHubUser(HttpUser):
         self.client.post("/features/online", json={
             "entity_id": "u1",
             "entity_ids": ["u1", "u2", "u3"],
-            "feature_names": ["user_age", "user_score", "purchase_count"]
+            "feature_names": ["user_age", "account_balance"]
         },
         headers={"x-api-key" : API_KEY}
         )
@@ -20,7 +20,7 @@ class FeatureHubUser(HttpUser):
     def get_historical_features(self):
         self.client.post("/features/historical", json={
             "entity_ids": ["u1", "u2", "u3"],
-            "feature_names": ["user_age", "user_score", "purchase_count"],
+            "feature_names": ["user_age", "account_balance"],
             "as_of": datetime.now(timezone.utc).isoformat()
         },
         headers={"x-api-key" : API_KEY}
