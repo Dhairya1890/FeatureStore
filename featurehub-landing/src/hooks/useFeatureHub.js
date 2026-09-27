@@ -143,57 +143,68 @@ export function useOnlineFeatures(entityId) {
 
 /**
  * Hook 3: useFeatureRegistry
- * On mount, GET ${apiBase}/features
- * Returns { features: [], loading, error }
+ * GET ${apiBase}/registry
+ * Returns { fetch, refetch, features: [], data, latencyMs, loading, error }
  */
-export function useFeatureRegistry() {
-  const [registry, setRegistry] = useState({
-    features: [],
-    loading: true,
-    error: null,
-  });
+export function useFeatureRegistry(autoFetch = true) {
+  const [features, setFeatures] = useState([]);
+  const [data, setData] = useState(null);
+  const [latencyMs, setLatencyMs] = useState(null);
+  const [loading, setLoading] = useState(autoFetch);
+  const [error, setError] = useState(null);
 
-  useEffect(() => {
-    let isMounted = true;
-    const controller = new AbortController();
-
-    const fetchRegistry = async () => {
-      try {
-        const res = await fetch(`${CONFIG.apiBase}/features`, {
-          signal: controller.signal,
-        });
-
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}`);
-        }
-
-        const data = await res.json();
-        if (isMounted) {
-          setRegistry({
-            features: Array.isArray(data) ? data : (data.features || []),
-            loading: false,
-            error: null,
-          });
-        }
-      } catch (err) {
-        if (err.name === 'AbortError') return;
-        if (isMounted) {
-          setRegistry({
-            features: [],
-            loading: false,
-            error: err.message || 'Failed to fetch feature registry',
-          });
-        }
+  const fetchRegistry = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    const start = performance.now();
+    try {
+      const headers = {
+        'Content-Type': 'application/json',
+      };
+      if (CONFIG.apiKey) {
+        headers['x-api-key'] = CONFIG.apiKey;
       }
-    };
 
-    fetchRegistry();
+      const res = await fetch(`${CONFIG.apiBase}/registry`, {
+        headers,
+      });
+      const end = performance.now();
+      setLatencyMs(Number((end - start).toFixed(1)));
 
-    return () => {
-      isMounted = false;
-      controller.abort();
-    };
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      const json = await res.json();
+      setData(json);
+      const list = Array.isArray(json) ? json : (json.features || []);
+      setFeatures(list);
+      return json;
+    } catch (err) {
+      const end = performance.now();
+      setLatencyMs(Number((end - start).toFixed(1)));
+      setError(err.message || 'Failed to fetch feature registry');
+      setFeatures([]);
+      setData(null);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  return registry;
+  useEffect(() => {
+    if (autoFetch) {
+      fetchRegistry();
+    }
+  }, [autoFetch, fetchRegistry]);
+
+  return {
+    fetch: fetchRegistry,
+    refetch: fetchRegistry,
+    features,
+    data,
+    latencyMs,
+    loading,
+    error,
+  };
 }
+
