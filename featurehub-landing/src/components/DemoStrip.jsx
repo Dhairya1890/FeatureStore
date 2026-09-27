@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useOnlineFeatures } from '../hooks/useFeatureHub';
 import FeatureRegistry from './FeatureRegistry';
+import WriteFeature from './WriteFeature';
 import CONFIG from '../config';
 
 function getHighlightedHtml(data) {
@@ -98,7 +99,11 @@ export default function DemoStrip() {
                 <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
               </svg>
               <span className="font-label-mono text-label-mono text-secondary">
-                {activeTab === 'online' ? 'ONLINE TIER SANDBOX' : 'METADATA & SCHEMA REGISTRY'}
+                {activeTab === 'online'
+                  ? 'ONLINE TIER SANDBOX'
+                  : activeTab === 'registry'
+                  ? 'METADATA & SCHEMA REGISTRY'
+                  : 'FEATURE INGESTION PIPELINE'}
               </span>
             </div>
             <h2 className="font-headline-lg text-headline-lg text-on-surface tracking-tight">
@@ -107,7 +112,9 @@ export default function DemoStrip() {
             <p className="font-body-md text-body-md text-on-surface-variant mt-1">
               {activeTab === 'online'
                 ? 'Query registered feature vectors in real time directly from the online Redis tier.'
-                : 'Fetch, verify, and inspect all registered features directly from /registry.'}
+                : activeTab === 'registry'
+                ? 'Fetch, verify, and inspect all registered features directly from /registry.'
+                : 'Write and materialize real-time feature values into the online Redis store via /features/write.'}
             </p>
           </div>
 
@@ -177,6 +184,28 @@ export default function DemoStrip() {
               <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
             </svg>
             <span>Registered Features (/registry)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('write')}
+            className={`inline-flex items-center gap-2 px-space-md py-1.5 rounded-lg text-code-base font-medium transition-all ${
+              activeTab === 'write'
+                ? 'bg-surface-container-high text-amber-400 border border-amber-400/40 shadow-sm font-semibold'
+                : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low'
+            }`}
+          >
+            <svg
+              className="w-4 h-4 text-amber-400"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+            <span>Write Feature (/features/write)</span>
           </button>
         </div>
 
@@ -338,20 +367,39 @@ export default function DemoStrip() {
                   Point-in-time verified feature vector from the online Redis cluster with zero serialization overhead.
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={() => setActiveTab('registry')}
-                className="text-primary hover:text-secondary font-label-mono text-xs underline shrink-0 text-left sm:text-right"
-              >
-                Inspect feature schemas →
-              </button>
+              <div className="flex items-center gap-3 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('registry')}
+                  className="text-primary hover:text-secondary font-label-mono text-xs underline shrink-0"
+                >
+                  Inspect schemas →
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('write')}
+                  className="text-amber-400 hover:text-amber-300 font-label-mono text-xs underline shrink-0"
+                >
+                  Write feature →
+                </button>
+              </div>
             </div>
           </>
-        ) : (
+        ) : activeTab === 'registry' ? (
           <div className="mt-space-lg">
             <FeatureRegistry
               onSelectFeature={(_featName) => {
                 setActiveTab('online');
+              }}
+            />
+          </div>
+        ) : (
+          <div className="mt-space-lg">
+            <WriteFeature
+              onFeatureWritten={({ entityId }) => {
+                if (entityId) setSelectedEntity(entityId);
+                setActiveTab('online');
+                fetchFeatures(entityId);
               }}
             />
           </div>

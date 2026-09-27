@@ -208,3 +208,92 @@ export function useFeatureRegistry(autoFetch = true) {
   };
 }
 
+/**
+ * Hook 4: useWriteFeature
+ * POST ${apiBase}/features/write
+ * Writes a feature value to the online Redis store.
+ * Returns { write, data, latencyMs, loading, error, reset }
+ */
+export function useWriteFeature() {
+  const [data, setData] = useState(null);
+  const [latencyMs, setLatencyMs] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const write = useCallback(
+    async ({
+      entity_type = 'user',
+      entity_id,
+      feature_name,
+      value,
+      ttl = 3600,
+    }) => {
+      setLoading(true);
+      setError(null);
+      const start = performance.now();
+
+      try {
+        const headers = {
+          'Content-Type': 'application/json',
+        };
+        if (CONFIG.apiKey) {
+          headers['x-api-key'] = CONFIG.apiKey;
+        }
+
+        const res = await fetch(`${CONFIG.apiBase}/features/write`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            entity_type: entity_type || 'user',
+            entity_id,
+            feature_name,
+            value: parseFloat(value),
+            ttl: parseInt(ttl, 10) || 3600,
+          }),
+        });
+
+        const end = performance.now();
+        const latency = Number((end - start).toFixed(1));
+        setLatencyMs(latency);
+
+        if (!res.ok) {
+          let errMsg = `HTTP ${res.status}`;
+          try {
+            const errData = await res.json();
+            if (errData.detail) errMsg = errData.detail;
+          } catch (_) {}
+          throw new Error(errMsg);
+        }
+
+        const json = await res.json();
+        setData(json);
+        return json;
+      } catch (err) {
+        const end = performance.now();
+        const latency = Number((end - start).toFixed(1));
+        setLatencyMs(latency);
+        setError(err.message || 'Failed to write feature');
+        setData(null);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
+
+  return {
+    write,
+    data,
+    latencyMs,
+    loading,
+    error,
+    reset: () => {
+      setData(null);
+      setError(null);
+      setLatencyMs(null);
+    },
+  };
+}
+
+

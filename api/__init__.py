@@ -205,6 +205,12 @@ class HistoricalRequest(BaseModel):
             )
         return v
 
+class FeatureWriteRequest(BaseModel):
+    entity_type : str
+    entity_id : str
+    feature_name : str
+    value : float
+    ttl : int = 3600
 
 class FeatureResponse(BaseModel):
     data: dict[str, dict[str, object]]
@@ -225,6 +231,7 @@ async def root() -> dict:
             "/features/registry",
             "/features/online",
             "/features/historical",
+            "/features/write",
         ],
     }
 
@@ -292,6 +299,30 @@ async def list_features(x_api_key: str | None = Header(default=None)):
         ]
     }
 
+@app.post(
+    "/features/write",
+    summary="Write a feature to the online store",
+    status_code=200,
+)
+async def write_feature_endpoint(
+    body: FeatureWriteRequest,
+    x_api_key: str | None = Header(default=None),
+):
+    await verify_api_key(x_api_key)
+    from online import write_feature
+    write_feature(
+        entity_type=body.entity_type,
+        entity_id=body.entity_id,
+        feature_name=body.feature_name,
+        value=body.value,
+        ttl=body.ttl,
+    )
+    return {
+        "status": "ok",
+        "key": f"{body.entity_type}:{body.entity_id}:{body.feature_name}",
+        "value": body.value,
+        "ttl": body.ttl,
+    }
 # ---------------------------------------------------------------------------
 # Health check (no auth — for load balancers / k8s probes)
 # ---------------------------------------------------------------------------
