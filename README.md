@@ -1,6 +1,6 @@
-# FeatureStore
+# FeatureHub
 
-FeatureStore is a lightweight ML feature store built to reduce training-serving skew and prevent data leakage. It keeps one source of truth for feature definitions, stores historical values in an offline store, and serves the latest values from Redis for online inference.
+FeatureHub is a lightweight ML feature store built to reduce training-serving skew and prevent data leakage. It keeps one source of truth for feature definitions, stores historical values in an offline store, and serves the latest values from Redis for online inference.
 
 ## Why this project exists
 
