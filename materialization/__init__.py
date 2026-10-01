@@ -7,6 +7,9 @@ from celery.utils.log import get_task_logger
 
 from registry import get, list_all
 from online import write_feature as write_online
+from offline import write_feature as offline_write
+from datetime import datetime
+import features  # noqa: F401 — import to populate the feature registry
 from monitoring.metrics import (
     MATERIALIZATION_DURATION,
     MATERIALIZATION_ENTITIES,
@@ -26,7 +29,7 @@ logger = get_task_logger(__name__)
 raw_broker = (
     os.getenv("CELERY_BROKER_URL")
     or os.getenv("CELERY_BROKEN_URL")
-    or "redis://localhost:6379/1"
+    or "redis://:featurehub@localhost:6379/1"
 ).strip().strip('"\'')
 if not raw_broker.startswith(("redis://", "rediss://", "unix://", "amqp://")):
     if "://" not in raw_broker:
@@ -43,7 +46,26 @@ celery_app.conf.update(
     accept_content=["json"],
     timezone="UTC",
     enable_utc=True,
+    beat_schedule={
+        "materialize-all-features-every-5-min": {
+            "task": "featurehub.scheduled_materialization",
+            "schedule": 300.0,  # every 5 minutes
+        },
+    },
 )
+
+
+@celery_app.task(name="featurehub.scheduled_materialization")
+def scheduled_materialization():
+    """Periodic task triggered by Celery Beat.
+
+    Generates entity IDs and dispatches materialization for all
+    registered features.
+    """
+    # Default entity IDs — in production, this would query an
+    # activity table for entities active in the last 24 hours.
+    entity_ids = [f"u{i}" for i in range(1000)]
+    return run_materialization(entity_ids)
 
 # ---------------------------------------------------------------------------
 # Retry config
@@ -83,6 +105,8 @@ def _notify_failure(feature_name: str, exc: Exception) -> None:
     )
     # TODO: send to alerting system (webhook / Slack / PagerDuty)
 
+def time():
+    return datetime.now()
 
 # ---------------------------------------------------------------------------
 # Per-feature Celery task
@@ -126,7 +150,7 @@ def materialize_feature(self, feature_name: str, entity_ids: list[str]) -> dict:
     try:
         # Batch compute: one call, dict back
         values: dict = record.compute_fn(entity_ids)
-
+        c_time = time()
         for entity_id in entity_ids:
             value = values.get(entity_id)
             if value is None:
@@ -149,6 +173,12 @@ def materialize_feature(self, feature_name: str, entity_ids: list[str]) -> dict:
                 entity_id=entity_id,
                 value=value,
                 ttl=record.ttl,
+            )
+            offline_write(
+                entity_id=entity_id,
+                feature_name=feature_name,
+                value=value,
+                computed_at=c_time,
             )
             written += 1
             MATERIALIZATION_WRITES.labels(

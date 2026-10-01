@@ -310,6 +310,8 @@ async def write_feature_endpoint(
 ):
     await verify_api_key(x_api_key)
     from online import write_feature
+    from offline import write_feature as offline_write
+    from datetime import datetime, timezone
     write_feature(
         entity_type=body.entity_type,
         entity_id=body.entity_id,
@@ -317,6 +319,12 @@ async def write_feature_endpoint(
         value=body.value,
         ttl=body.ttl,
     )
+    # offline_write(
+    #     entity_id = body.entity_id,
+    #     feature_name = body.feature_name,
+    #     value = body.value,
+    #     computed_at=
+    # )
     return {
         "status": "ok",
         "key": f"{body.entity_type}:{body.entity_id}:{body.feature_name}",

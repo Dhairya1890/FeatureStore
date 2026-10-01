@@ -4,16 +4,20 @@ from sqlalchemy.orm import declarative_base
 Base = declarative_base()
 
 
+# schema for postgres table FeatureValue
 class FeatureValue(Base):
     # Defining Columns of Table feature_store
     __tablename__ = "feature_store"
     id = Column(Integer, primary_key=True, autoincrement=True)
+    entity_type = Column(String, default="user")
     entity_id = Column(String)
     feature_name = Column(String)
     value = Column(Float)
     computed_at = Column(DateTime)
 
-    __table_args__ = (Index("entity_id", "feature_name"),)
+    __table_args__ = (
+        Index("ix_entity_feature", "entity_type", "entity_id", "feature_name"),
+    )
 
 
 from sqlalchemy import create_engine
@@ -23,7 +27,11 @@ import os
 load_dotenv()
 
 # Connection to SQLAlchemy's connection to the database
-postgres_url = os.getenv("POSTGRES_URL") or os.getenv("POSTGRESQL_URL") or os.getenv("DATABASE_URL")
+postgres_url = (
+    os.getenv("POSTGRES_URL")
+    or os.getenv("POSTGRESQL_URL")
+    or os.getenv("DATABASE_URL")
+)
 if not postgres_url:
     raise ValueError(
         "POSTGRES_URL environment variable is not set! "
@@ -50,12 +58,13 @@ Session = sessionmaker(bind=engine)
 # Writing to Offline Store
 
 
-def write_feature(entity_id, feature_name, value, computed_at):
+def write_feature(entity_id, feature_name, value, computed_at, entity_type="user"):
 
     session = Session()
 
     try:
         new_value = FeatureValue(
+            entity_type=entity_type,
             entity_id=entity_id,
             feature_name=feature_name,
             value=value,
@@ -74,7 +83,15 @@ def write_feature(entity_id, feature_name, value, computed_at):
 # Function returning feature value of required params
 
 
-def get_historical_features(entity_ids=None, feature_names=None, as_of=None, *, entity_id=None, feature_name=None, as_of_timestamp=None):
+def get_historical_features(
+    entity_ids=None,
+    feature_names=None,
+    as_of=None,
+    *,
+    entity_id=None,
+    feature_name=None,
+    as_of_timestamp=None
+):
     if as_of is None:
         as_of = as_of_timestamp
     if isinstance(entity_ids, str):
@@ -90,28 +107,34 @@ def get_historical_features(entity_ids=None, feature_names=None, as_of=None, *, 
     if feature_names is None:
         feature_names = []
 
+    if not entity_ids or not feature_names:
+        return {eid: {} for eid in entity_ids}
+
     session = Session()
     try:
-        result = {entity_id_value: {} for entity_id_value in entity_ids}
-        for entity_id_value in entity_ids:
-            for feature_name_value in feature_names:
-                row = session.execute(
-                    text("""
-                        SELECT value
-                        FROM feature_store f
-                        WHERE f.entity_id = :entity_id
-                        AND f.feature_name = :feature_name
-                        AND f.computed_at <= :computed_at
-                        ORDER by computed_at DESC
-                        LIMIT 1
-                    """),
-                    {
-                        "entity_id": entity_id_value,
-                        "feature_name": feature_name_value,
-                        "computed_at": as_of,
-                    },
-                ).fetchone()
-                result.setdefault(entity_id_value, {})[feature_name_value] = row[0] if row else None
+        result = {eid: {} for eid in entity_ids}
+        rows = session.execute(
+            text("""
+                SELECT DISTINCT ON (entity_id, feature_name)
+                       entity_id, feature_name, value
+                FROM feature_store
+                WHERE entity_id = ANY(:entity_ids)
+                  AND feature_name = ANY(:feature_names)
+                  AND computed_at <= :as_of
+                ORDER BY entity_id, feature_name, computed_at DESC
+            """),
+            {
+                "entity_ids": entity_ids,
+                "feature_names": feature_names,
+                "as_of": as_of,
+            },
+        ).fetchall()
+        for row in rows:
+            result.setdefault(row[0], {})[row[1]] = row[2]
+        # Fill in None for missing feature values
+        for eid in entity_ids:
+            for fname in feature_names:
+                result[eid].setdefault(fname, None)
         return result
     finally:
         session.close()

@@ -1,5 +1,4 @@
 """
-According to my AI Agent, I need three things in my Online __init__ file
 
 - A Redis Connection
 - A write_feature that stores a value with TTL
@@ -8,7 +7,6 @@ According to my AI Agent, I need three things in my Online __init__ file
 """
 
 import os
-
 import redis
 from dotenv import load_dotenv
 from time import perf_counter
@@ -31,19 +29,8 @@ redis_client = r
 
 # Write a materialization job function
 
-def write_feature(entity_type=None, entity_id=None, feature_name=None, value=None, ttl=None, **kwargs):
-    if feature_name is None and 'feature_name' in kwargs:
-        feature_name = kwargs['feature_name']
-    if entity_id is None and 'entity_id' in kwargs:
-        entity_id = kwargs['entity_id']
-    if value is None and 'value' in kwargs:
-        value = kwargs['value']
-    if ttl is None and 'ttl' in kwargs:
-        ttl = kwargs['ttl']
-    if entity_type is None:
-        entity_type = kwargs.get('entity_type', 'user')
-
-    if entity_type is None or entity_id is None or feature_name is None or value is None or ttl is None:
+def write_feature(entity_type, entity_id, feature_name, value, ttl):
+    if any(arg is None for arg in (entity_type, entity_id, feature_name, value, ttl)):
         raise TypeError("write_feature requires entity_type, entity_id, feature_name, value, and ttl.")
 
     k = f'{entity_type}:{entity_id}:{feature_name}'

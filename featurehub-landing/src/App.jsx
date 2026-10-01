@@ -28,7 +28,7 @@ export default function App() {
           <WhatItSolves />
 
           {/* 3. Live Demo Sandbox */}
-          <DemoStrip />
+          {/* <DemoStrip /> */}
 
           {/* 4. Live System Nav Cards (Grafana, Docs, Flower, Locust) */}
           <NavCards />

@@ -44,7 +44,7 @@ def get_online_features(
 ) -> dict[str, dict[str, object]]:
     """Fetch latest feature values from the online store (Redis).
 
-    Falls back to the offline store (as of now) for any missing value.
+    Falls back to the offline store for any missing value.
     Use at inference time.
 
     Args:
@@ -53,7 +53,7 @@ def get_online_features(
 
     Returns:
         {entity_id: {feature_name: value}}
-        Missing values that could not be recovered(Even ) are None.
+        Missing values that could not be recovered are None.
     """
     _validate_feature_names(feature_names)
 

@@ -48,6 +48,30 @@ services:
       - ./locust:/mnt/locust
     command: -f /mnt/locust/locustfile.py --host=https://featurestore.onrender.com
 
+  celery-worker:
+    build: .
+    container_name: featurehub-celery-worker
+    command: celery -A materialization worker --loglevel=info
+    environment:
+      POSTGRES_URL: postgresql://featurehub:featurehub@postgres:5432/featurehub
+      REDIS_URL: redis://:featurehub@redis:6379/0
+      CELERY_BROKER_URL: redis://:featurehub@redis:6379/1
+    depends_on:
+      - redis
+      - postgres
+
+  celery-beat:
+    build: .
+    container_name: featurehub-celery-beat
+    command: celery -A materialization beat --loglevel=info
+    environment:
+      POSTGRES_URL: postgresql://featurehub:featurehub@postgres:5432/featurehub
+      REDIS_URL: redis://:featurehub@redis:6379/0
+      CELERY_BROKER_URL: redis://:featurehub@redis:6379/1
+    depends_on:
+      - redis
+      - postgres
+
 volumes:
   postgres_data:
   grafana_data:

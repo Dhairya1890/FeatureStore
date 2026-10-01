@@ -40,64 +40,10 @@ export default function Hero() {
       </p>
 
       {/* Inline Live Stat Chips */}
-      <div className="flex flex-wrap items-center justify-center gap-space-md mt-space-xl min-h-[44px]">
-        {loading ? (
-          // Skeleton placeholders for stat chips while loading, not spinners
-          <>
-            <div className="h-11 w-44 rounded-xl bg-surface-container-low border border-outline-variant animate-pulse" />
-            <div className="h-11 w-40 rounded-xl bg-surface-container-low border border-outline-variant animate-pulse" />
-            <div className="h-11 w-36 rounded-xl bg-surface-container-low border border-outline-variant animate-pulse" />
-          </>
-        ) : (
-          <>
-            {/* Stat Chip 1 */}
-            <div className="flex items-center gap-space-sm px-space-md py-space-xs rounded-xl bg-surface-container-low border border-outline-variant shadow-sm hover:border-secondary/40 transition-colors">
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-secondary"></span>
-              </span>
-              <span className="font-metric-val text-code-base text-on-surface">
-                {error || featuresRegistered === null ? '--' : featuresRegistered}{' '}
-                <span className="font-body-sm text-body-sm text-on-surface-variant">
-                  features registered
-                </span>
-              </span>
-            </div>
-
-            {/* Stat Chip 2 */}
-            <div className="flex items-center gap-space-sm px-space-md py-space-xs rounded-xl bg-surface-container-low border border-outline-variant shadow-sm hover:border-secondary/40 transition-colors">
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-secondary"></span>
-              </span>
-              <span className="font-metric-val text-code-base text-on-surface">
-                {error || jobsCompleted === null ? '--' : jobsCompleted}{' '}
-                <span className="font-body-sm text-body-sm text-on-surface-variant">
-                  jobs completed
-                </span>
-              </span>
-            </div>
-
-            {/* Stat Chip 3 */}
-            <div className="flex items-center gap-space-sm px-space-md py-space-xs rounded-xl bg-surface-container-low border border-outline-variant shadow-sm hover:border-secondary/40 transition-colors">
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-secondary"></span>
-              </span>
-              <span className="font-metric-val text-code-base text-secondary">
-                {error || uptime === null ? '--' : uptime}{' '}
-                <span className="font-body-sm text-body-sm text-on-surface-variant">
-                  uptime SLA
-                </span>
-              </span>
-            </div>
-          </>
-        )}
-      </div>
 
       {/* CTA Row */}
       <div className="flex flex-wrap items-center justify-center gap-space-md mt-space-xl">
-        <a
+        {/* <a
           href="#demo"
           onClick={handleScrollToDemo}
           className="inline-flex items-center gap-space-sm px-space-lg py-space-sm rounded-lg bg-primary-container text-on-primary font-headline-md text-code-base font-semibold shadow-[0_0_24px_rgba(160,120,255,0.35)] hover:bg-primary transition-all duration-200"
@@ -115,7 +61,7 @@ export default function Hero() {
             <line x1="12" y1="5" x2="12" y2="19" />
             <polyline points="19 12 12 19 5 12" />
           </svg>
-        </a>
+        </a> */}
         <a
           href={CONFIG.docsUrl}
           rel="noreferrer"
