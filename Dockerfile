@@ -14,10 +14,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY features.py .
 COPY init_db.py .
 COPY seed.py .
+COPY pyproject.toml .
 COPY registry/ registry/
 COPY online/ online/
 COPY offline/ offline/
 COPY sdk/ sdk/
+COPY api/ api/
 COPY materialization/ materialization/
 COPY monitoring/ monitoring/
 COPY .env .
+

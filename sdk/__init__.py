@@ -2,11 +2,19 @@ import logging
 from datetime import datetime, timezone
 
 from registry import get, list_all
+import features  # noqa: F401 — ensure registered features are loaded
 from offline import get_historical_features as offline_get_historical
 from online import get_feature as online_get_feature
 from monitoring.metrics import ONLINE_FALLBACKS, ONLINE_FALLBACK_MISSES
 
 logger = logging.getLogger(__name__)
+
+__all__ = [
+    "get_online_features",
+    "get_historical_features",
+    "list_all",
+    "get",
+]
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -112,7 +120,8 @@ def get_historical_features(
     entity_ids: list[str],
     feature_names: list[str],
     as_of: datetime,
-) -> dict[str, dict[str, object]]:
+    as_df: bool = False,
+):
     """Fetch point-in-time correct feature values from the offline store.
 
     Use at training time. The as_of timestamp is applied strictly --
@@ -122,10 +131,11 @@ def get_historical_features(
         entity_ids:    Entities to fetch for.
         feature_names: Features to fetch.
         as_of:         Point-in-time cutoff. Must be timezone-aware.
+        as_df:         If True, return a pandas DataFrame instead of dict.
 
     Returns:
-        {entity_id: {feature_name: value}}
-        Missing values are None.
+        {entity_id: {feature_name: value}} or pandas.DataFrame if as_df=True.
+        Missing values are None / NaN.
     """
     if as_of.tzinfo is None:
         raise ValueError(
@@ -154,5 +164,18 @@ def get_historical_features(
                     feature_name, entity_id, as_of.isoformat(),
                 )
             result[entity_id][feature_name] = value
+
+    if as_df:
+        try:
+            import pandas as pd
+            records = []
+            for eid, feats in result.items():
+                row = {"entity_id": eid}
+                row.update(feats)
+                records.append(row)
+            return pd.DataFrame(records)
+        except ImportError:
+            logger.warning("[FeatureHub SDK] pandas is not installed; returning dict.")
+            return result
 
     return result

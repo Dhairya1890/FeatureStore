@@ -168,9 +168,9 @@ async def generic_error_handler(request: Request, exc: Exception) -> JSONRespons
 # Request / Response models
 # ---------------------------------------------------------------------------
 class OnlineRequest(BaseModel):
-    entity_ids: list[str]
-    entity_id: str
-    feature_names: list[str]
+    entity_ids: list[str] = []
+    entity_id: str = ""
+    feature_names: list[str] = []
 
     @model_validator(mode="after")
     def normalize_request(self):
@@ -244,7 +244,7 @@ async def root() -> dict:
 )
 async def online_features(
     body: OnlineRequest,
-    x_api_key: str = Header(...),
+    x_api_key: str | None = Header(default=None),
 ) -> FeatureResponse:
     await verify_api_key(x_api_key)
     data = get_online_features(
@@ -262,7 +262,7 @@ async def online_features(
 )
 async def historical_features(
     body: HistoricalRequest,
-    x_api_key: str = Header(...),
+    x_api_key: str | None = Header(default=None),
 ) -> FeatureResponse:
     await verify_api_key(x_api_key)
     data = get_historical_features(
@@ -301,7 +301,7 @@ async def list_features(x_api_key: str | None = Header(default=None)):
 
 @app.post(
     "/features/write",
-    summary="Write a feature to the online store",
+    summary="Write a feature to the online and offline store",
     status_code=200,
 )
 async def write_feature_endpoint(
@@ -312,6 +312,9 @@ async def write_feature_endpoint(
     from online import write_feature
     from offline import write_feature as offline_write
     from datetime import datetime, timezone
+    from registry import get, _registry, FeatureRecord
+
+    # 1. Write to Redis (online store)
     write_feature(
         entity_type=body.entity_type,
         entity_id=body.entity_id,
@@ -319,17 +322,37 @@ async def write_feature_endpoint(
         value=body.value,
         ttl=body.ttl,
     )
-    # offline_write(
-    #     entity_id = body.entity_id,
-    #     feature_name = body.feature_name,
-    #     value = body.value,
-    #     computed_at=
-    # )
+
+    # 2. Write to PostgreSQL (offline store)
+    computed_at = datetime.now(timezone.utc)
+    offline_write(
+        entity_id=body.entity_id,
+        feature_name=body.feature_name,
+        value=body.value,
+        computed_at=computed_at,
+        entity_type=body.entity_type,
+    )
+
+    # 3. Dynamic registration: if feature is not registered, auto-register it
+    # so that subsequent calls to get_online_features won't fail validation
+    if get(body.feature_name) is None:
+        _registry[body.feature_name] = FeatureRecord(
+            name=body.feature_name,
+            entity_type=body.entity_type,
+            fn=lambda entity_ids, val=body.value: {eid: val for eid in entity_ids},
+            version="1.0.0",
+            owner="api_write",
+            ttl=body.ttl,
+            description=f"Dynamically registered feature {body.feature_name}",
+            data_type="float",
+        )
+
     return {
         "status": "ok",
         "key": f"{body.entity_type}:{body.entity_id}:{body.feature_name}",
         "value": body.value,
         "ttl": body.ttl,
+        "computed_at": computed_at.isoformat(),
     }
 # ---------------------------------------------------------------------------
 # Health check (no auth — for load balancers / k8s probes)

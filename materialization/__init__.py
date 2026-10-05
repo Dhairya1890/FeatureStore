@@ -7,8 +7,8 @@ from celery.utils.log import get_task_logger
 
 from registry import get, list_all
 from online import write_feature as write_online
-from offline import write_feature as offline_write
-from datetime import datetime
+from offline import write_feature as offline_write, write_features_batch
+from datetime import datetime, timezone
 import features  # noqa: F401 — import to populate the feature registry
 from monitoring.metrics import (
     MATERIALIZATION_DURATION,
@@ -62,9 +62,8 @@ def scheduled_materialization():
     Generates entity IDs and dispatches materialization for all
     registered features.
     """
-    # Default entity IDs — in production, this would query an
-    # activity table for entities active in the last 24 hours.
-    entity_ids = [f"u{i}" for i in range(1000)]
+    # Demo entities and 1000 generated entities
+    entity_ids = ["user_001", "user_002", "user_003"] + [f"u{i}" for i in range(1000)]
     return run_materialization(entity_ids)
 
 # ---------------------------------------------------------------------------
@@ -104,9 +103,6 @@ def _notify_failure(feature_name: str, exc: Exception) -> None:
         exc,
     )
     # TODO: send to alerting system (webhook / Slack / PagerDuty)
-
-def time():
-    return datetime.now()
 
 # ---------------------------------------------------------------------------
 # Per-feature Celery task
@@ -150,7 +146,9 @@ def materialize_feature(self, feature_name: str, entity_ids: list[str]) -> dict:
     try:
         # Batch compute: one call, dict back
         values: dict = record.compute_fn(entity_ids)
-        c_time = time()
+        c_time = datetime.now(timezone.utc)
+        offline_records = []
+
         for entity_id in entity_ids:
             value = values.get(entity_id)
             if value is None:
@@ -174,16 +172,21 @@ def materialize_feature(self, feature_name: str, entity_ids: list[str]) -> dict:
                 value=value,
                 ttl=record.ttl,
             )
-            offline_write(
-                entity_id=entity_id,
-                feature_name=feature_name,
-                value=value,
-                computed_at=c_time,
-            )
+            offline_records.append({
+                "entity_type": record.entity_type,
+                "entity_id": entity_id,
+                "feature_name": feature_name,
+                "value": value,
+                "computed_at": c_time,
+            })
             written += 1
             MATERIALIZATION_WRITES.labels(
                 feature=feature_name, entity_type=entity_type
             ).inc()
+
+        # Batch insert to PostgreSQL offline store
+        if offline_records:
+            write_features_batch(offline_records)
 
         logger.info(
             "[FeatureHub] Materialized | feature=%s written=%d skipped=%d",

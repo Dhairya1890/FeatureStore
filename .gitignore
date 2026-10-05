@@ -7,3 +7,4 @@ dump.rdb
 __pycache__
 node_modules
 featurehub_key.pem
+*.egg-info/

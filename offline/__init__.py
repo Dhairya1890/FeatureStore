@@ -13,30 +13,26 @@ class FeatureValue(Base):
     entity_id = Column(String)
     feature_name = Column(String)
     value = Column(Float)
-    computed_at = Column(DateTime)
+    computed_at = Column(DateTime(timezone=True))
 
     __table_args__ = (
-        Index("ix_entity_feature", "entity_type", "entity_id", "feature_name"),
+        Index("ix_entity_feature_time", "entity_id", "feature_name", "computed_at"),
     )
 
 
 from sqlalchemy import create_engine
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 import os
 
-load_dotenv()
+load_dotenv(find_dotenv())
 
 # Connection to SQLAlchemy's connection to the database
 postgres_url = (
     os.getenv("POSTGRES_URL")
     or os.getenv("POSTGRESQL_URL")
     or os.getenv("DATABASE_URL")
+    or "postgresql://featurehub:featurehub@localhost:5432/featurehub"
 )
-if not postgres_url:
-    raise ValueError(
-        "POSTGRES_URL environment variable is not set! "
-        "Please add POSTGRES_URL to your Environment Variables in the Render Dashboard."
-    )
 if postgres_url.startswith("postgres://"):
     postgres_url = postgres_url.replace("postgres://", "postgresql://", 1)
 
@@ -72,6 +68,31 @@ def write_feature(entity_id, feature_name, value, computed_at, entity_type="user
         )
 
         session.add(new_value)
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        raise e
+    finally:
+        session.close()
+
+
+def write_features_batch(records: list[dict]):
+    """Batch write multiple feature values to the offline store in a single transaction."""
+    if not records:
+        return
+    session = Session()
+    try:
+        objects = [
+            FeatureValue(
+                entity_type=rec.get("entity_type", "user"),
+                entity_id=rec["entity_id"],
+                feature_name=rec["feature_name"],
+                value=rec["value"],
+                computed_at=rec["computed_at"],
+            )
+            for rec in records
+        ]
+        session.bulk_save_objects(objects)
         session.commit()
     except Exception as e:
         session.rollback()

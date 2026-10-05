@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "featurehub"
+version = "0.1.0"
+description = "Production-grade ML Feature Store"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "sqlalchemy",
+    "psycopg2-binary",
+    "redis",
+    "celery",
+    "python-dotenv",
+    "prometheus-client",
+]
+
+[tool.setuptools]
+packages = ["registry", "online", "offline", "sdk", "api", "materialization", "monitoring"]
+py-modules = ["features", "init_db", "seed"]
